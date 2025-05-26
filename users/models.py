@@ -1,5 +1,4 @@
 import sqlmodel
-from conf.database import engine
 from passlib.context import CryptContext
 
 hashing = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto" )
