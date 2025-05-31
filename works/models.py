@@ -1,6 +1,5 @@
-from fastapi import Request
 import sqlmodel
-from sqlalchemy import Column
+from fastapi import Request
 from datetime import datetime, timedelta
 from typing import Optional
 from conf.exceptions import APIException
@@ -16,6 +15,7 @@ class WorkMember(sqlmodel.SQLModel, table=True):
     role: Optional[str]
     has_arrived: Optional[bool] = sqlmodel.Field(default=False)
     arrive_time: Optional[datetime] = sqlmodel.Field(default=None)
+    send_late_notification_task_id: Optional[str] = sqlmodel.Field(default=None)
     
 
 class Work(sqlmodel.SQLModel, table=True):
@@ -29,6 +29,7 @@ class Work(sqlmodel.SQLModel, table=True):
     date_end: Optional[datetime]
     vehicle_id: Optional[int] = sqlmodel.Field(default=None, sa_column=sqlmodel.Column(sqlmodel.ForeignKey("vehiculos.id", ondelete="CASCADE")))
     driver_id : Optional[int] = sqlmodel.Field(default=None, sa_column=sqlmodel.Column(sqlmodel.ForeignKey("usuarios.id", ondelete="CASCADE")))
+    
 
     async def validate(self, request: Request, session: sqlmodel.Session):
 
@@ -49,7 +50,7 @@ class Work(sqlmodel.SQLModel, table=True):
         if not content_type or not content_type.startswith("application/json"):
             raise APIException({"error": "Sólo se permiten formularios JSON"}, status_code=400)
 
-        data = await request.json()
+        data: dict = await request.json()
         if "vehicle_id" in data:
             
             required_fields.append("driver_id")
@@ -63,14 +64,27 @@ class Work(sqlmodel.SQLModel, table=True):
             driver = session.get(User, data["driver_id"])
             
             if not driver:
-                raise APIException({"error": "No existe el usuario introducido"}, status_code=400)
+                raise APIException({"error": "No existe el usuario introducido"}, status_code=404)
         
         for field in required_fields:
             if field not in data:
                 errors.append(f"El campo {field} es requerido")
                 
         if not isinstance(data.get("members", []), list):
-            errors.append("El campo members debe ser una lista de usuarios con sus roles en el trabajo")
+            errors.append("El campo members debe ser una lista de usuarios con sus roles del trabajo")
+            
+        else:
+            members: list = data.get("members", [])
+            
+            for member in members:
+                if not "user_id" or not "role" in member:
+                    errors.append("El campo members debe ser una lista de usuarios con sus roles del trabajo")
+                
+                if not session.get(User, member["user_id"]):
+                    
+                    errors.append(f"El usuario con id: {member['user_id']} no existe")
+                
+                validated_fields["members"] = members           
         
         if errors:
             raise APIException({"error": errors}, status_code=400)
@@ -80,38 +94,35 @@ class Work(sqlmodel.SQLModel, table=True):
 
         validated_fields["date_start"] = datetime.strptime(validated_fields["date_start"], "%Y-%m-%dT%H:%M")
         validated_fields["date_end"] = datetime.strptime(validated_fields["date_end"], "%Y-%m-%dT%H:%M")
+        
         return validated_fields
 
     async def save(self, data: dict, session: sqlmodel.Session):
         members: list[dict] = data.pop("members", [])
-            
         for key, value in data.items():
             setattr(self, key, value)
 
         session.add(self)
         session.flush()
         
-        for user in members:
-            user_id = user.get("user_id")
-            role = user.get("role")
+        for member_data in members:
+            user_id = member_data.get("user_id")
+            role = member_data.get("role")
                 
             member = WorkMember(
                 user_id=user_id,
                 work_id=self.id,
                 role=role,
             )
-            session.add(member)
             
+            start_late_arrival_notification = send_late_arrival_notification.apply_async(
+                args=[user_id, self.id],
+                eta=self.date_start + timedelta(minutes=15)
+            )
+            
+            member.send_late_notification_task_id = start_late_arrival_notification.id
+            print(f"Tarea programada con ID: {start_late_arrival_notification.id}")
+            session.add(member)
         
-        tarea_celery = send_late_arrival_notification.apply_async(
-            args=[self.driver_id, self.id],
-            eta=self.date_start + timedelta(minutes=15)
-        )
-        print(f"Tarea programada con ID: {tarea_celery.id}")
-        
-        #session.commit()
-        #session.refresh(self)
-        
-
-    
-
+        session.commit()
+        session.refresh(self)
