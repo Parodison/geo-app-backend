@@ -16,7 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 MEDIA_DIR = Path("media")
 
-REDIS_INSTANCE = redis.Redis(host=env.redis_host, port=env.redis_port, db=0)
+REDIS_INSTANCE = redis.Redis(host=env.redis_host, port=env.redis_port, db=0, decode_responses=True)
 
 celery_app = Celery(
     "geo_app",

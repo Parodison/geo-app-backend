@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from conf.middleware import LoginMiddleware
 from conf.settings import MEDIA_DIR
 from users.routes import router as users_router
 from vehicles.routes import router as vehicles_router
@@ -15,3 +16,5 @@ app.include_router(locations_router, prefix="/api/locations")
 
 MEDIA_DIR.mkdir(exist_ok=True)
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
+
+app.add_middleware(LoginMiddleware)
