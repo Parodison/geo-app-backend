@@ -5,7 +5,7 @@ from typing import Optional
 from conf.exceptions import APIException
 from users.models import User
 from vehicles.models import Vehicle
-from works.tasks import send_late_arrival_notification
+from works import tasks
 
 class WorkMember(sqlmodel.SQLModel, table=True):
     __tablename__ = "miembros_trabajo"
@@ -24,11 +24,12 @@ class Work(sqlmodel.SQLModel, table=True):
     latitude: float
     longitude: float
     location_name: str
-    description: Optional[str]
+    description: Optional[str] = sqlmodel.Field(default=None, sa_column=sqlmodel.Column(sqlmodel.Text))
     date_start: Optional[datetime]
     date_end: Optional[datetime]
     vehicle_id: Optional[int] = sqlmodel.Field(default=None, sa_column=sqlmodel.Column(sqlmodel.ForeignKey("vehiculos.id", ondelete="CASCADE")))
     driver_id : Optional[int] = sqlmodel.Field(default=None, sa_column=sqlmodel.Column(sqlmodel.ForeignKey("usuarios.id", ondelete="CASCADE")))
+    status: str = sqlmodel.Field(default="pending")
     
 
     async def validate(self, request: Request, session: sqlmodel.Session):
@@ -115,14 +116,17 @@ class Work(sqlmodel.SQLModel, table=True):
                 role=role,
             )
             
-            start_late_arrival_notification = send_late_arrival_notification.apply_async(
+            start_late_arrival_notification = tasks.send_late_arrival_notification.apply_async(
                 args=[user_id, self.id],
                 eta=self.date_start + timedelta(minutes=15)
             )
             
             member.send_late_notification_task_id = start_late_arrival_notification.id
             print(f"Tarea programada con ID: {start_late_arrival_notification.id}")
+            
+            
             session.add(member)
+        tasks.mark_work_as_active.apply_async(args=[self.id], eta=self.date_start)
         
         session.commit()
         session.refresh(self)

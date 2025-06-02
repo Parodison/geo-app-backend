@@ -17,7 +17,7 @@ async def create_work(request: Request, db: Session = Depends(get_db)):
         await work.save(validated_data, db)
         
         return JSONResponse(
-            content={"mensaje": "Trabajo creado con éxito"},
+            content={"message": "Trabajo creado con éxito"},
             status_code=201
         )
         

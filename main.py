@@ -1,13 +1,25 @@
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from conf.middleware import LoginMiddleware
+from geolocation.geo_manager import GeolocationManager
 from conf.settings import MEDIA_DIR
 from users.routes import router as users_router
 from vehicles.routes import router as vehicles_router
 from works.routes import router as works_router
 from geolocation.routes import router as locations_router
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    geo_manager = GeolocationManager()
+    location_listener = asyncio.create_task(geo_manager.locations_listener())
+    yield
+    location_listener.cancel()
+    
+    
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(users_router, prefix="/api/users")
 app.include_router(vehicles_router, prefix="/api/vehicles")

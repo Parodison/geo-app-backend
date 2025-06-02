@@ -1,0 +1,3 @@
+from geolocation.geo_manager import active_connections
+
+print(active_connections)
