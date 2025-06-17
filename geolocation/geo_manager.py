@@ -26,25 +26,26 @@ class GeolocationManager:
             "mark_arrival": self.mark_arrival,
         }
 
-        self.users_locations_channel = "user_locations"
+        self.user_locations_channel = "user_locations"
 
     async def locations_listener(self):
         pubsub = self.redis.pubsub()
-        pubsub.subscribe(self.users_locations_channel)
+        pubsub.subscribe(self.user_locations_channel)
 
         while True:
             message = pubsub.get_message()
             if message and message["type"] == 'message':
-                data = json.loads(message["data"])
+                location = json.loads(message["data"])
                 for connection in active_connections:
-                    if connection["user_id"] != data["user_id"]:
-                        await connection["websocket"].send_json(data)
+                    if connection["user_id"] != location["user_id"]:
+                        await connection["websocket"].send_json(location)
                 
             await asyncio.sleep(0.5)
         
         
     async def validate_connection(self):
         access_token = self.websocket.query_params.get("access_token")
+
         if not access_token:
             await self.websocket.close(code=1008, reason="No se proporcionó el access token")
             return
@@ -69,7 +70,6 @@ class GeolocationManager:
             "websocket": self.websocket,
             "connected_at": datetime.now(timezone.utc),
         })
-
 
         try:
             while True:
@@ -144,7 +144,7 @@ class GeolocationManager:
                 }
                 
                 self.redis.set(f"user_location:{user_id}", json.dumps(new_location))
-                self.redis.publish(self.users_locations_channel, json.dumps(new_location))
+                self.redis.publish(self.user_locations_channel, json.dumps(new_location))
                 return
             
         else:
@@ -165,7 +165,7 @@ class GeolocationManager:
                 "locations": new_location
             }
             
-            self.redis.publish(self.users_locations_channel, json.dumps(data_for_channel))
+            self.redis.publish(self.user_locations_channel, json.dumps(data_for_channel))
             return
         
     async def mark_arrival(self, data: dict):

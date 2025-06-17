@@ -17,10 +17,15 @@ class WorkMember(sqlmodel.SQLModel, table=True):
     arrive_time: Optional[datetime] = sqlmodel.Field(default=None)
     send_late_notification_task_id: Optional[str] = sqlmodel.Field(default=None)
     
+    #-----Relations-------
+    
+    user: Optional["User"] = sqlmodel.Relationship()
+    
 
 class Work(sqlmodel.SQLModel, table=True):
     __tablename__ = "trabajos"
     id: Optional[int] = sqlmodel.Field(primary_key=True)
+    name: str
     latitude: float
     longitude: float
     location_name: str
@@ -35,6 +40,7 @@ class Work(sqlmodel.SQLModel, table=True):
     async def validate(self, request: Request, session: sqlmodel.Session):
 
         required_fields = [
+            "name",
             "latitude",
             "longitude",
             "location_name",

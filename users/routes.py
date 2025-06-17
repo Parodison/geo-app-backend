@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from conf.authentication import auth
 from users.schemas import UserSchema
@@ -50,7 +51,7 @@ async def login(user_schema: UserSchema, db: Session = Depends(get_db)):
 
         user = db.exec(select(User).where(User.email == email)).first()
         if not user:
-            return JSONResponse(content={"message": "No se encontró ningún usuario"}, status_code=404)
+            return JSONResponse(content={"error": "No se encontró ningún usuario"}, status_code=401)
         
         if not user.verify_password(password):
             return JSONResponse(content={"error": "Credenciales inválidas"}, status_code=401)
@@ -69,3 +70,20 @@ async def login(user_schema: UserSchema, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Ha ocurrido un error interno al iniciar sesión {e}")
         return JSONResponse(content={"message": f"Ha ocurrido un error interno al iniciar sesión"}, status_code=500)
+    
+@router.get("/list-users")
+async def list_users(db: Session = Depends(get_db)):
+    try:
+        users = list(db.exec(select(User).order_by(User.id)).all())
+        
+        users_list = []
+        for u in users:
+            user = dict(u)
+            user.pop("password")
+            users_list.append(user)
+            
+        return JSONResponse(content=jsonable_encoder(users_list), status_code=200)
+    except Exception as e:
+        print(f"Ha ocurrido un error interno al obtener la lista de usuarios {e}")
+        return JSONResponse(content={"message": f"Ha ocurrido un error interno al obtener la lista de usuarios"}, status_code=500)
+        

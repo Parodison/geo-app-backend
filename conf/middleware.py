@@ -11,7 +11,7 @@ ALGORITHM = "HS256"
 class LoginMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
-        if request.method == "OPTIONS" or request.url.path in no_login_paths:
+        if request.method == "OPTIONS" or request.url.path in no_login_paths or request.url.path.startswith("/media"):
             return await call_next(request)
         
         

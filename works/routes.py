@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
+from typing import Literal
+from fastapi import APIRouter, Depends, Request, Query
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response
 from sqlmodel import Session, select
 from datetime import datetime
 from conf.settings import REDIS_INSTANCE as r
@@ -23,20 +25,29 @@ async def create_work(request: Request, db: Session = Depends(get_db)):
         
     except APIException as e:
         return JSONResponse(content=e.response, status_code=e.status_code)
-    
-    
+
 @router.get("/get-works")
-async def get_works(db: Session = Depends(get_db)):
+async def get_works(
+    db: Session = Depends(get_db),
+    status: Literal["active", "inactive", "pending", "finished", "all"] = Query(...)
+):
     works_list = []
     try:
-        works = db.exec(select(Work).order_by(Work.date_start.desc())).all()
+        if status == "all":
+            works = db.exec(select(Work).order_by(Work.date_start.desc())).all()
+
+        else:
+            works = list(db.exec(select(Work).where(Work.status == status).order_by(Work.date_start.desc())))
+            
+        if not works:
+            return Response(status_code=204)
+        
         for work in works:
-            work_dump = work.model_dump()
-            
             work_members = db.exec(select(WorkMember).where(WorkMember.work_id == work.id)).all()
-            
-            work_dump["members"] = [member.model_dump() for member in work_members]
-            works_list.append(work_dump)
+            work_dump = work.model_dump()
+            work_dump["members"] = len(work_members)
+
+            works_list.append(jsonable_encoder(work_dump))
             
         return JSONResponse(content=works_list, status_code=200)
             

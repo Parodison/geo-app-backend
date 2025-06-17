@@ -9,6 +9,9 @@ class Env:
     base_url = config('BASE_URL')
     redis_host = config('REDIS_HOST')
     redis_port = int(config('REDIS_PORT'))
+    google_maps_api_key = config('GOOGLE_MAPS_API_KEY')
+    google_places_url = config('GOOGLE_PLACES_URL')
+    google_maps_api_url = config('GOOGLE_MAPS_API_URL')
 
 env = Env()
 
